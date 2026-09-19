@@ -20,6 +20,11 @@ export type DayNameState = {
   message?: string;
 };
 
+export type DuplicateState = {
+  error?: string;
+  message?: string;
+};
+
 async function getOwnedExercise(
   supabase: TypedClient,
   exerciseId: string,
@@ -156,6 +161,78 @@ export async function setDayName(
 
   revalidatePlanPaths(planId);
   return { message: "Zapisano nazwę dnia." };
+}
+
+export async function duplicateDayExercises(
+  planId: string,
+  fromDayOfWeek: number,
+  toDayOfWeek: number
+): Promise<DuplicateState> {
+  if (fromDayOfWeek === toDayOfWeek) return {};
+
+  const supabase = await createClient();
+  const user = await requireUser(supabase);
+
+  if (!(await assertOwnsPlan(supabase, planId, user.id))) {
+    return { error: "Nie znaleziono planu." };
+  }
+
+  const { data: sourceExercises } = await supabase
+    .from("exercises")
+    .select("name, sets, rep_range, target_weight, target_rpe, notes, position")
+    .eq("plan_id", planId)
+    .eq("day_of_week", fromDayOfWeek)
+    .order("position", { ascending: true });
+
+  if (!sourceExercises || sourceExercises.length === 0) {
+    return { error: "Ten dzień nie ma ćwiczeń do skopiowania." };
+  }
+
+  // Duplikowanie zastępuje dotychczasową zawartość dnia docelowego
+  // (potwierdzenie nadpisania dzieje się po stronie klienta).
+  const { error: deleteError } = await supabase
+    .from("exercises")
+    .delete()
+    .eq("plan_id", planId)
+    .eq("day_of_week", toDayOfWeek);
+  if (deleteError) {
+    return { error: deleteError.message };
+  }
+
+  const { error: insertError } = await supabase.from("exercises").insert(
+    sourceExercises.map((exercise) => ({
+      plan_id: planId,
+      day_of_week: toDayOfWeek,
+      name: exercise.name,
+      sets: exercise.sets,
+      rep_range: exercise.rep_range,
+      target_weight: exercise.target_weight,
+      target_rpe: exercise.target_rpe,
+      notes: exercise.notes,
+      position: exercise.position,
+    }))
+  );
+  if (insertError) {
+    return { error: insertError.message };
+  }
+
+  const { data: sourceDay } = await supabase
+    .from("plan_days")
+    .select("name")
+    .eq("plan_id", planId)
+    .eq("day_of_week", fromDayOfWeek)
+    .maybeSingle();
+
+  if (sourceDay?.name) {
+    await supabase.from("plan_days").upsert(
+      { plan_id: planId, day_of_week: toDayOfWeek, name: sourceDay.name },
+      { onConflict: "plan_id,day_of_week" }
+    );
+  }
+
+  await touchPlan(supabase, planId);
+  revalidatePlanPaths(planId);
+  return { message: "Skopiowano dzień." };
 }
 
 // --- Exercises ---

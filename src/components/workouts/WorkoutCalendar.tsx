@@ -9,6 +9,7 @@ import {
   toggleRestDay,
   markWorkoutCompleted,
 } from "@/app/actions/schedule";
+import { duplicateDayExercises } from "@/app/actions/plans";
 import {
   getRangeDates,
   toDateKey,
@@ -55,6 +56,7 @@ export function WorkoutCalendar({
   const [selectedDateKey, setSelectedDateKey] = useState(() => toDateKey(new Date()));
   const [dragged, setDragged] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
   const [conflict, setConflict] = useState<{ from: string; to: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -166,6 +168,34 @@ export function WorkoutCalendar({
     .filter((e) => e.day_of_week === selectedDayOfWeek)
     .sort((a, b) => a.position - b.position);
   const selectedIsRest = selectedDayOfWeek === null || selectedExercises.length === 0;
+
+  function handleDuplicate(targetDayOfWeek: DayOfWeek) {
+    if (targetDayOfWeek === effectiveDayOfWeek) {
+      setDuplicating(null);
+      return;
+    }
+    const hasTargetContent = (exerciseCountByDay.get(targetDayOfWeek) ?? 0) > 0;
+    if (hasTargetContent) {
+      const targetName = DAYS_OF_WEEK[targetDayOfWeek]?.full;
+      if (
+        !window.confirm(
+          `${targetName} ma już ćwiczenia — zastąpić je kopią tego dnia?`
+        )
+      ) {
+        return;
+      }
+    }
+    startTransition(async () => {
+      setActionError(null);
+      const result = await duplicateDayExercises(
+        planId,
+        effectiveDayOfWeek,
+        targetDayOfWeek
+      );
+      if (result.error) setActionError(result.error);
+      setDuplicating(null);
+    });
+  }
 
   return (
     <div className="space-y-5">
@@ -360,6 +390,21 @@ export function WorkoutCalendar({
             >
               {moving === selectedDateKey ? "Wybierz dzień" : "Reschedule"}
             </button>
+            {!selectedIsRest && (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() =>
+                  setDuplicating(duplicating === selectedDateKey ? null : selectedDateKey)
+                }
+                className={buttonVariants({
+                  variant: duplicating === selectedDateKey ? "secondary" : "outline",
+                  size: "sm",
+                })}
+              >
+                {duplicating === selectedDateKey ? "Wybierz dzień" : "Duplikuj do…"}
+              </button>
+            )}
             {!selectedIsRest && selectedSlot.status !== "completed" && (
               <button
                 type="button"
@@ -396,6 +441,26 @@ export function WorkoutCalendar({
                 </button>
               ) : null
             )}
+          </div>
+        )}
+
+        {duplicating === selectedDateKey && (
+          <div className="space-y-2 border-b border-line pb-4">
+            <p className="text-xs text-muted-foreground">
+              Skopiuj ćwiczenia z tego dnia na:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {DAYS_OF_WEEK.filter((d) => d.value !== effectiveDayOfWeek).map((d) => (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() => handleDuplicate(d.value)}
+                  className={buttonVariants({ variant: "ghost", size: "sm" })}
+                >
+                  {d.full}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
