@@ -1,7 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password"];
+// Link z maila (reset hasła / potwierdzenie konta) musi działać niezależnie
+// od tego, czy ktoś jest już zalogowany.
+const OPEN_PATHS = ["/auth/"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -30,6 +33,10 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (OPEN_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))) {
+    return response;
+  }
 
   const isPublicPath = PUBLIC_PATHS.some((path) =>
     request.nextUrl.pathname.startsWith(path)

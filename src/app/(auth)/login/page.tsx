@@ -32,6 +32,15 @@ export default function LoginPage() {
           required
         />
 
+        <div className="text-right">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-muted-foreground underline"
+          >
+            Nie pamiętasz hasła?
+          </Link>
+        </div>
+
         {state.error && <p className="text-sm text-destructive">{state.error}</p>}
 
         <button
