@@ -26,6 +26,7 @@ import { ExerciseRow } from "@/components/workouts/ExerciseRow";
 import { AddExerciseForm } from "@/components/workouts/AddExerciseForm";
 import { DayNameEditor } from "@/components/workouts/DayNameEditor";
 import { buttonVariants } from "@/components/ui/Button";
+import { StartWorkoutButton } from "@/components/sessions/StartWorkoutButton";
 import type { Tables } from "@/lib/supabase/database.types";
 
 type DaySlot = {
@@ -378,7 +379,7 @@ export function WorkoutCalendar({
               </p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-start gap-2">
             <button
               type="button"
               disabled={selectedIsRest}
@@ -404,6 +405,14 @@ export function WorkoutCalendar({
               >
                 {duplicating === selectedDateKey ? "Wybierz dzień" : "Duplikuj do…"}
               </button>
+            )}
+            {!selectedIsRest && selectedDateKey <= toDateKey(new Date()) && (
+              <StartWorkoutButton
+                planId={planId}
+                dateKey={selectedDateKey}
+                size="sm"
+                label={selectedSlot.status === "completed" ? "Otwórz trening" : "Rozpocznij trening"}
+              />
             )}
             {!selectedIsRest && selectedSlot.status !== "completed" && (
               <button

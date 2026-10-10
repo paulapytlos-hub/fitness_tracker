@@ -9,6 +9,7 @@ import {
   formatLongDate,
 } from "@/lib/schedule";
 import { buttonVariants } from "@/components/ui/Button";
+import { StartWorkoutButton } from "@/components/sessions/StartWorkoutButton";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -42,14 +43,20 @@ export default async function DashboardPage() {
   });
   const weekDateKeys = weekDates.map(toDateKey);
 
+  const todayKey = toDateKey(today);
+  let todaySessionState: "none" | "in_progress" | "completed" = "none";
   let todayWorkoutName: string | null = null;
   let todayExerciseCount = 0;
   let completedThisWeek = 0;
   let totalThisWeek = 0;
 
   if (plan) {
-    const [{ data: exercises }, { data: planDays }, { data: scheduledWorkouts }] =
-      await Promise.all([
+    const [
+      { data: exercises },
+      { data: planDays },
+      { data: scheduledWorkouts },
+      { data: todaySession },
+    ] = await Promise.all([
         supabase.from("exercises").select("day_of_week").eq("plan_id", plan.id),
         supabase.from("plan_days").select("day_of_week, name").eq("plan_id", plan.id),
         supabase
@@ -57,7 +64,19 @@ export default async function DashboardPage() {
           .select("scheduled_date, source_day_of_week, status")
           .eq("plan_id", plan.id)
           .in("scheduled_date", weekDateKeys),
+        supabase
+          .from("workout_sessions")
+          .select("completed_at")
+          .eq("plan_id", plan.id)
+          .eq("scheduled_date", todayKey)
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
+
+    if (todaySession) {
+      todaySessionState = todaySession.completed_at ? "completed" : "in_progress";
+    }
 
     const exerciseCountByDay = new Map<number, number>();
     for (const ex of exercises ?? []) {
@@ -79,7 +98,7 @@ export default async function DashboardPage() {
       totalThisWeek += 1;
       if (resolved.status === "completed") completedThisWeek += 1;
 
-      if (dateKey === toDateKey(today)) {
+      if (dateKey === todayKey) {
         todayExerciseCount = exerciseCountByDay.get(resolved.sourceDayOfWeek!) ?? 0;
         todayWorkoutName =
           planDays?.find((d) => d.day_of_week === resolved.sourceDayOfWeek)?.name ?? "Trening";
@@ -132,12 +151,28 @@ export default async function DashboardPage() {
               <p className="mt-2 text-muted-foreground">
                 {todayWorkoutName ? `${todayExerciseCount} ćwiczeń` : "Dzień odpoczynku"}
               </p>
-              <Link
-                href={`/workouts/${plan.id}/edit`}
-                className={buttonVariants({ size: "lg", className: "mt-8" })}
-              >
-                {todayWorkoutName ? "Rozpocznij trening" : "Zobacz plan"} <ArrowRight />
-              </Link>
+              {todayWorkoutName ? (
+                <StartWorkoutButton
+                  planId={plan.id}
+                  dateKey={todayKey}
+                  size="lg"
+                  className="mt-8"
+                  label={
+                    todaySessionState === "completed"
+                      ? "Zobacz trening"
+                      : todaySessionState === "in_progress"
+                        ? "Kontynuuj trening"
+                        : "Rozpocznij trening"
+                  }
+                />
+              ) : (
+                <Link
+                  href={`/workouts/${plan.id}/edit`}
+                  className={buttonVariants({ size: "lg", className: "mt-8" })}
+                >
+                  Zobacz plan <ArrowRight />
+                </Link>
+              )}
             </div>
             <div className="border-t border-line bg-secondary/50 p-6 sm:p-9 lg:border-l lg:border-t-0">
               <p className="text-sm font-medium">Postęp tygodnia</p>
