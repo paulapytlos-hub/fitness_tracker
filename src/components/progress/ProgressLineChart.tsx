@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { dateKeyToDate } from "@/lib/schedule";
 import { formatNumber } from "@/lib/sessions";
-import type { ProgressPoint } from "@/lib/progress";
+
+export type ChartPoint = {
+  key: string;
+  dateKey: string;
+  value: number;
+  /** Dodatkowa linijka w dymku, np. "× 8 · 3 serie". */
+  detail?: string;
+};
 
 const HEIGHT = 160;
 const PAD = { top: 12, right: 12, bottom: 24, left: 36 };
@@ -27,16 +34,17 @@ function niceTicks(min: number, max: number): number[] {
 }
 
 /**
- * Jedna seria (najlepszy wynik na trening) — kolor primary, bez legendy,
- * bo tytuł karty nazywa serię. Crosshair przyciąga się do najbliższego
+ * Jedna seria — kolor primary, bez legendy, bo tytuł karty nazywa serię. Crosshair przyciąga się do najbliższego
  * treningu; strzałki działają z klawiatury.
  */
 export function ProgressLineChart({
   points,
   unit,
+  label,
 }: {
-  points: ProgressPoint[];
-  unit: "kg" | "reps";
+  points: ChartPoint[];
+  unit: string;
+  label: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -71,7 +79,7 @@ export function ProgressLineChart({
       : "";
 
   function formatValue(v: number) {
-    return unit === "kg" ? `${formatNumber(v)} kg` : `${formatNumber(v)} powt.`;
+    return `${formatNumber(v)} ${unit}`;
   }
 
   function nearestIndex(clientX: number) {
@@ -93,7 +101,7 @@ export function ProgressLineChart({
           width={width}
           height={HEIGHT}
           role="img"
-          aria-label={`Wykres: najlepszy wynik na trening, ${points.length} treningów`}
+          aria-label={`Wykres: ${label}, ${points.length} pomiarów`}
           tabIndex={0}
           className="block outline-none focus-visible:rounded-md focus-visible:ring-1 focus-visible:ring-ring"
           onPointerMove={(e) => setActive(nearestIndex(e.clientX))}
@@ -173,7 +181,7 @@ export function ProgressLineChart({
 
           {points.map((p, i) => (
             <circle
-              key={p.sessionId}
+              key={p.key}
               cx={x(i)}
               cy={y(p.value)}
               r={i === active ? 5 : 4}
@@ -196,13 +204,8 @@ export function ProgressLineChart({
           <p className="text-muted-foreground">{shortDate(activePoint.dateKey)}</p>
           <p className="mt-0.5 text-sm font-medium text-foreground">
             {formatValue(activePoint.value)}
-            {unit === "kg" && activePoint.reps !== null && (
-              <span className="font-normal text-muted-foreground"> × {activePoint.reps}</span>
-            )}
           </p>
-          <p className="text-muted-foreground">
-            {activePoint.setCount} {activePoint.setCount === 1 ? "seria" : "serii"}
-          </p>
+          {activePoint.detail && <p className="text-muted-foreground">{activePoint.detail}</p>}
         </div>
       )}
     </div>

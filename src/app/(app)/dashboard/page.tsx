@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Sparkles, ArrowRight, CalendarDays, ChevronRight, Dumbbell } from "lucide-react";
+import { Sparkles, ArrowRight, CalendarDays, ChevronRight, Dumbbell, ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import {
   resolveDay,
@@ -214,6 +214,12 @@ export default async function DashboardPage() {
               Edytuj plan treningowy <Dumbbell className="size-4 text-primary" />
             </Link>
           )}
+          <Link
+            href="/weekly-report"
+            className="flex items-center justify-between py-4 text-sm font-medium"
+          >
+            Dodaj raport tygodniowy <ClipboardList className="size-4 text-primary" />
+          </Link>
           <Link
             href="/progress"
             className="flex items-center justify-between py-4 text-sm font-medium"

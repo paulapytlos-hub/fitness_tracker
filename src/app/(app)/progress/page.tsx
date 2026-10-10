@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Dumbbell, TrendingUp, BarChart3 } from "lucide-react";
+import { Dumbbell, BarChart3, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Page } from "@/components/Page";
 import { buttonVariants } from "@/components/ui/Button";
 import { ExerciseProgressCard } from "@/components/progress/ExerciseProgressCard";
+import { MeasurementsSection } from "@/components/progress/MeasurementsSection";
+import { getSignedPhotoUrls, type PhotoType } from "@/lib/reports";
 import { buildExerciseProgress } from "@/lib/progress";
 import { formatNumber, sessionDate, totalVolume } from "@/lib/sessions";
 
@@ -26,6 +28,38 @@ export default async function ProgressPage() {
     .order("started_at", { ascending: true })
     .limit(500);
 
+  const [{ data: reports }, { data: photoRows }] = await Promise.all([
+    supabase
+      .from("weekly_reports")
+      .select("id, week_start, weight, waist, hips, thigh, mood")
+      .eq("user_id", user.id)
+      .order("week_start", { ascending: true }),
+    supabase
+      .from("progress_photos")
+      .select("photo_type, storage_path, created_at, weekly_reports(week_start)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(30),
+  ]);
+
+  // Zdjęcia z najnowszego tygodnia, w którym jakiekolwiek są.
+  const photosByWeek = (photoRows ?? []).filter((p) => p.weekly_reports);
+  const latestPhotosWeek =
+    photosByWeek
+      .map((p) => p.weekly_reports!.week_start)
+      .sort()
+      .at(-1) ?? null;
+  const latestRows = photosByWeek.filter((p) => p.weekly_reports!.week_start === latestPhotosWeek);
+  const urls = await getSignedPhotoUrls(
+    supabase,
+    latestRows.map((p) => p.storage_path)
+  );
+  const latestPhotos: Partial<Record<PhotoType, string>> = {};
+  for (const row of [...latestRows].reverse()) {
+    const url = urls.get(row.storage_path);
+    if (url) latestPhotos[row.photo_type as PhotoType] = url;
+  }
+
   const completed = sessions ?? [];
   const exercises = buildExerciseProgress(completed);
   const allSets = completed.flatMap((s) => s.session_exercises.flatMap((ex) => ex.exercise_sets));
@@ -45,7 +79,15 @@ export default async function ProgressPage() {
   ];
 
   return (
-    <Page title="Progress" description="Jak rośnie Twoja siła — liczone z zapisanych treningów.">
+    <Page
+      title="Progress"
+      description="Jak rośnie Twoja siła i jak zmienia się ciało — z zapisanych treningów i raportów."
+      action={
+        <Link href="/weekly-report" className={buttonVariants()}>
+          <Plus /> Raport
+        </Link>
+      }
+    >
       <dl className="grid grid-cols-2 border-y border-line sm:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label} className="py-5">
@@ -85,15 +127,11 @@ export default async function ProgressPage() {
         )}
       </section>
 
-      <section className="mt-12">
-        <h2 className="flex items-center gap-2 text-lg font-medium">
-          <TrendingUp className="size-4 text-primary" />
-          Pomiary ciała
-        </h2>
-        <p className="mt-4 border-y border-line py-8 text-center text-sm text-muted-foreground">
-          Pojawią się tutaj, gdy powstanie tygodniowy raport (waga, obwody, zdjęcia).
-        </p>
-      </section>
+      <MeasurementsSection
+        reports={reports ?? []}
+        latestPhotos={latestPhotos}
+        latestPhotosWeek={latestPhotosWeek}
+      />
     </Page>
   );
 }

@@ -52,7 +52,21 @@ export function ExerciseProgressCard({
 
       {points.length >= 2 ? (
         <div className="mt-5">
-          <ProgressLineChart points={points} unit={metric} />
+          <ProgressLineChart
+            label={progress.name}
+            unit={metric === "kg" ? "kg" : "powt."}
+            points={points.map((p) => ({
+              key: p.sessionId,
+              dateKey: p.dateKey,
+              value: p.value,
+              detail: [
+                metric === "kg" && p.reps !== null ? `× ${p.reps} powt.` : null,
+                `${p.setCount} ${p.setCount === 1 ? "seria" : "serii"}`,
+              ]
+                .filter(Boolean)
+                .join(" · "),
+            }))}
+          />
         </div>
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
